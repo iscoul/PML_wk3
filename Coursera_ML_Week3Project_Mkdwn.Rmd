@@ -1,0 +1,121 @@
+---
+title: "CourseraPMLWk3"
+author: "Issa Coulibaly"
+date: ""
+output: html_document
+---
+
+```{r,echo=FALSE}
+path<- 'C:/Users/IICOUL/Documents/Coursera/Practical Machine Learning/Week_3/'
+setwd(paste(path))
+load(paste(path,"Coursera_ML_Week3Project.RData", sep=""))
+
+```
+
+
+```{r,eval=FALSE,echo=FALSE}
+
+train <- read.csv("pml-training.csv", header=TRUE,stringsAsFactors=F, strip.white = TRUE,na.strings=c("","NA"))
+test <-read.csv("pml-testing.csv", header=TRUE,stringsAsFactors=F, strip.white = TRUE,na.strings=c("","NA"))
+dim(train);dim(test)
+```
+
+Taking a look at variable summary
+The output is too long to be displayed here. Some variable appear to have many missing data. Others are character variable aside from the classe variable.
+```{r,eval=FALSE}
+summary(train)
+```
+Removing near-zero variables
+```{r}
+library(caret)
+nzv<-nearZeroVar(train, saveMetrics=TRUE)
+sum(nzv$nzv)
+train2<-train[,!nzv$nzv]
+test2<-test[,!nzv$nzv]
+```
+
+
+Removing variables with too many missing data
+```{r}
+n2<-dim(train2)[1]
+missd2<-sapply(train2, function(x) sum(is.na(x))/n2)
+mssta<- missd2 > .15
+train2<-train2[,!mssta]
+test2<-test2[,!mssta]
+```
+
+Checking predictors relationships visually.
+Only a few examples are provided here.
+
+```{r}
+qplot(X,num_window,colour=classe,data=train2)
+qplot(X,roll_belt,colour=classe,data=train2)
+
+```
+Removing time variables  and other variables.
+```{r}
+train2$raw_timestamp_part_1 <- train2$raw_timestamp_part_2 <- train2$cvtd_timestamp <- train2$user_name <- train2$X <- NULL
+test2$raw_timestamp_part_1 <- test2$raw_timestamp_part_2 <- test2$cvtd_timestamp <- test2$user_name <- test2$X <- NULL
+
+```
+
+Removing highly correlated variables
+```{r}
+cor.m <-cor(train2[, -54])
+cor.var<-findCorrelation(cor.m)
+train2<-train2[-cor.var]
+test2<-test2[-cor.var]
+```
+
+
+Training model using random forests approach
+Predictor variables were centered and scaled 
+```{r,eval=FALSE}
+rfFit<- train(classe ~ ., method="rf",preProcess=c("center","scale"),
+n.tree=500,data=train2)
+```
+
+Taking a look at the output 
+```{r}
+rfFit
+
+```
+
+The error rate is
+```{r}
+1 - max(rfFit$results$Accuracy)
+```
+Plot accuracy
+```{r}
+plot(rfFit)
+```
+
+Most important variables in the prediction model
+```{r}
+varImp(rfFit)
+```
+
+Predicting the 20 cases from the test set
+```{r,eval=FALSE}
+rfPred<-predict(rfFit,newdata=test2)
+```
+```{r}
+rfPred
+```
+
+Writing out prediction files
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(rfPred)
+```
+
+
+
+
